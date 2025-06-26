@@ -1,6 +1,7 @@
 package com.clinicanuevomilenio.solicitudservicio.controllers;
 
 import com.clinicanuevomilenio.solicitudservicio.dto.AsignacionRequestDTO;
+import com.clinicanuevomilenio.solicitudservicio.dto.IncidenciaCreacionDTO;
 import com.clinicanuevomilenio.solicitudservicio.dto.SolicitudServicioCreacionDTO;
 import com.clinicanuevomilenio.solicitudservicio.dto.SolicitudServicioRespuestaDTO;
 import com.clinicanuevomilenio.solicitudservicio.services.SolicitudServicioService;
@@ -73,6 +74,30 @@ public class SolicitudServicioController {
             return ResponseEntity.ok(solicitudAsignada); //
         } catch (EntityNotFoundException | IllegalStateException e) { //
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage())); //
+        }
+    }
+
+    @GetMapping("/tipos")
+    public ResponseEntity<List<String>> listarTiposDeServicio() {
+        List<String> tipos = List.of(
+                "Limpieza",
+                "Mantenimiento de Equipo",
+                "Reparación de Infraestructura",
+                "Reposición de Suministros",
+                "Soporte Técnico"
+        );
+        return ResponseEntity.ok(tipos);
+    }
+
+    @PostMapping("/incidencias")
+    public ResponseEntity<?> reportarIncidencia(
+            @RequestBody IncidenciaCreacionDTO dto,
+            @RequestHeader("X-User-Id") Integer usuarioId) {
+        try {
+            SolicitudServicioRespuestaDTO solicitudCreada = solicitudService.crearDesdeIncidencia(dto, usuarioId);
+            return ResponseEntity.status(HttpStatus.CREATED).body(solicitudCreada);
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
         }
     }
 }
