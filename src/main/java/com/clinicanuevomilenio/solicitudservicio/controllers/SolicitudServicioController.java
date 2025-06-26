@@ -1,9 +1,6 @@
 package com.clinicanuevomilenio.solicitudservicio.controllers;
 
-import com.clinicanuevomilenio.solicitudservicio.dto.AsignacionRequestDTO;
-import com.clinicanuevomilenio.solicitudservicio.dto.IncidenciaCreacionDTO;
-import com.clinicanuevomilenio.solicitudservicio.dto.SolicitudServicioCreacionDTO;
-import com.clinicanuevomilenio.solicitudservicio.dto.SolicitudServicioRespuestaDTO;
+import com.clinicanuevomilenio.solicitudservicio.dto.*;
 import com.clinicanuevomilenio.solicitudservicio.services.SolicitudServicioService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -99,5 +96,15 @@ public class SolicitudServicioController {
         } catch (EntityNotFoundException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
         }
+    }
+
+    @GetMapping("/pendientes")
+    public ResponseEntity<List<SolicitudServicioRespuestaDTO>> listarSolicitudesPendientes() {
+        return ResponseEntity.ok(solicitudService.listarSolicitudesPendientes());
+    }
+
+    @GetMapping("/personal-disponible")
+    public ResponseEntity<List<UsuarioDTO>> listarPersonalPorRol(@RequestParam String rol) {
+        return ResponseEntity.ok(solicitudService.listarPersonalPorRol(rol));
     }
 }
