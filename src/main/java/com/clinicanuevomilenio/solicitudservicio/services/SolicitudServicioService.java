@@ -2,14 +2,8 @@ package com.clinicanuevomilenio.solicitudservicio.services;
 
 import com.clinicanuevomilenio.solicitudservicio.dto.*;
 import com.clinicanuevomilenio.solicitudservicio.mapper.SolicitudMapper;
-import com.clinicanuevomilenio.solicitudservicio.models.AsignacionServicio;
-import com.clinicanuevomilenio.solicitudservicio.models.EstadoSolicitud;
-import com.clinicanuevomilenio.solicitudservicio.models.PrioridadSolicitud;
-import com.clinicanuevomilenio.solicitudservicio.models.SolicitudServicio;
-import com.clinicanuevomilenio.solicitudservicio.repository.AsignacionServicioRepository; // Importar si se va a manejar directamente
-import com.clinicanuevomilenio.solicitudservicio.repository.EstadoSolicitudRepository;
-import com.clinicanuevomilenio.solicitudservicio.repository.PrioridadSolicitudRepository;
-import com.clinicanuevomilenio.solicitudservicio.repository.SolicitudServicioRepository;
+import com.clinicanuevomilenio.solicitudservicio.models.*;
+import com.clinicanuevomilenio.solicitudservicio.repository.*;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -40,6 +34,61 @@ public class SolicitudServicioService {
 
     // Mappers
     private final SolicitudMapper solicitudMapper; //
+
+    private final TipoIncidenciaRepository tipoIncidenciaRepository;
+
+    @Transactional
+    public SolicitudServicioRespuestaDTO crearDesdeIncidencia(IncidenciaCreacionDTO dto, Integer usuarioId) {
+        // 1. Validar entidades externas (pabellón, equipo, usuario)
+        PabellonDTO pabellon = pabellonClient.obtenerPabellonPorId(dto.getPabellonId());
+        if (pabellon == null) throw new EntityNotFoundException("Pabellón no encontrado con ID: " + dto.getPabellonId());
+
+        UsuarioDTO solicitante = usuarioClient.obtenerUsuarioPorId(usuarioId);
+        if (solicitante == null) throw new EntityNotFoundException("Usuario no encontrado con ID: " + usuarioId);
+
+        EquipamientoDTO equipamiento = null;
+        if (dto.getEquipamientoId() != null) {
+            equipamiento = equipamientoClient.obtenerEquipamientoPorId(dto.getEquipamientoId());
+        }
+
+        // 2. Validar entidades locales
+        TipoIncidencia tipoIncidencia = tipoIncidenciaRepository.findById(dto.getTipoIncidenciaId())
+                .orElseThrow(() -> new EntityNotFoundException("Tipo de incidencia no encontrado con ID: " + dto.getTipoIncidenciaId()));
+
+        // Asumimos que una incidencia tiene prioridad alta (ID 2) y estado inicial pendiente (ID 1)
+        PrioridadSolicitud prioridad = prioridadRepository.findById(2)
+                .orElseThrow(() -> new EntityNotFoundException("Prioridad 'Alta' no configurada."));
+        EstadoSolicitud estadoInicial = estadoRepository.findById(1)
+                .orElseThrow(() -> new EntityNotFoundException("Estado 'Pendiente' no configurado."));
+
+        // 3. Crear la Solicitud de Servicio
+        SolicitudServicio nuevaSolicitud = new SolicitudServicio();
+        nuevaSolicitud.setTipo("Reporte de Incidencia"); // Tipo de servicio genérico
+        nuevaSolicitud.setDescripcion("Incidencia reportada: " + tipoIncidencia.getNombre() + ". Detalles: " + dto.getDescripcion());
+        nuevaSolicitud.setFechaHrSolicitud(LocalDateTime.now());
+        nuevaSolicitud.setFechaHrRequerida(LocalDateTime.now().plusHours(1)); // Requerido en 1 hora por defecto
+        nuevaSolicitud.setPrioridad(prioridad);
+        nuevaSolicitud.setEstado(estadoInicial);
+        nuevaSolicitud.setPabellonId(dto.getPabellonId());
+        nuevaSolicitud.setUsuarioSolicitanteId(usuarioId);
+        nuevaSolicitud.setEquipamientoId(dto.getEquipamientoId());
+
+        // 4. Crear el Registro de Incidencia
+        RegistroIncidencia nuevaIncidencia = new RegistroIncidencia();
+        nuevaIncidencia.setDescripcion(dto.getDescripcion());
+        nuevaIncidencia.setFechaHrReporte(LocalDateTime.now());
+        nuevaIncidencia.setTipoIncidencia(tipoIncidencia);
+        nuevaIncidencia.setSolicitudServicio(nuevaSolicitud); // Vinculamos la incidencia a la solicitud
+
+        // Añadimos la incidencia a la lista de la solicitud
+        nuevaSolicitud.setIncidencias(List.of(nuevaIncidencia));
+
+        // 5. Guardar la solicitud (gracias a CascadeType.ALL, la incidencia se guardará con ella)
+        SolicitudServicio guardada = solicitudRepository.save(nuevaSolicitud);
+
+        // 6. Devolver la respuesta
+        return solicitudMapper.toResponseDTO(guardada, solicitante, pabellon, equipamiento, null);
+    }
 
     @Transactional
     public SolicitudServicioRespuestaDTO crearSolicitud(SolicitudServicioCreacionDTO dto, Integer usuarioSolicitanteId) { //
