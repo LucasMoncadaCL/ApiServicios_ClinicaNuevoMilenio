@@ -25,4 +25,6 @@ public interface SolicitudServicioRepository extends JpaRepository<SolicitudServ
      * Busca todas las solicitudes de servicio que tienen un estado específico.
      */
     List<SolicitudServicio> findByEstadoId(Integer estadoId);
+
+    List<SolicitudServicio> findByEstado_IdNotIn(List<Integer> estados);
 }

@@ -1,46 +1,70 @@
 package com.clinicanuevomilenio.solicitudservicio.services;
 
 import com.clinicanuevomilenio.solicitudservicio.dto.EquipamientoDTO;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class EquipamientoClientService {
 
-    // Inyecta el bean específico para el cliente de equipamiento
-    private final WebClient equipamientoClient;
+    private final WebClient webClient;
+
+    // Constructor explícito para inyectar el WebClient correcto
+    public EquipamientoClientService(@Qualifier("equipamientoClient") WebClient webClient) {
+        this.webClient = webClient;
+    }
 
     /**
-     * Obtiene los detalles de un único equipo desde la equipamiento-api.
+     * Llama a la equipamiento-api para obtener los detalles de un equipo por su ID.
+     * @param id El ID del equipo a buscar.
+     * @return Un DTO con la información del equipo, o null si no se encuentra.
      */
-    public EquipamientoDTO obtenerEquipamientoPorId(Integer equipamientoId) {
+    public EquipamientoDTO obtenerEquipamientoPorId(Integer id) {
         try {
-            return equipamientoClient.get()
-                    .uri("/tipos/{id}", equipamientoId) // Asume que la ruta es /tipos/{id} en la otra API
+            return webClient.get()
+                    // Apunta al endpoint correcto en EquipamientoController
+                    .uri("/tipos/{id}", id)
                     .retrieve()
                     .bodyToMono(EquipamientoDTO.class)
                     .block();
-        } catch (WebClientResponseException.NotFound ex) {
-            return null; // Devuelve null si no se encuentra
+        } catch (WebClientResponseException.NotFound e) {
+            return null;
+        } catch (Exception e) {
+            throw new RuntimeException("Error al comunicarse con el servicio de equipamiento: " + e.getMessage());
         }
     }
 
     /**
-     * Obtiene una lista de equipos a partir de una lista de IDs en una sola llamada.
+     * Llama a la equipamiento-api para obtener una lista de equipos a partir de sus IDs.
+     * @param ids Una lista de IDs de equipamientos.
+     * @return Una lista de DTOs con la información de los equipos encontrados.
      */
-    public List<EquipamientoDTO> obtenerEquipamientosPorIds(List<Integer> equipamientoIds) {
-        if (equipamientoIds == null || equipamientoIds.isEmpty()) {
+    public List<EquipamientoDTO> obtenerEquipamientosPorIds(List<Integer> ids) {
+        if (ids == null || ids.isEmpty()) {
             return List.of();
         }
-        return equipamientoClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/tipos/por-ids").queryParam("ids", equipamientoIds).build()) // Asume que la ruta masiva es /tipos/por-ids
-                .retrieve()
-                .bodyToFlux(EquipamientoDTO.class)
-                .collectList()
-                .block();
+        String idsComoString = ids.stream()
+                .map(String::valueOf)
+                .collect(Collectors.joining(","));
+        try {
+            return webClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            // Apunta al endpoint correcto en EquipamientoController
+                            .path("/tipos/por-ids")
+                            .queryParam("ids", idsComoString)
+                            .build())
+                    .retrieve()
+                    .bodyToFlux(EquipamientoDTO.class)
+                    .collectList()
+                    .block();
+        } catch (Exception e) {
+            System.err.println("Error al obtener equipamientos por IDs: " + e.getMessage());
+            return List.of();
+        }
     }
 }
